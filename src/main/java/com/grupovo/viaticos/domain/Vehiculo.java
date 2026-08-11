@@ -32,6 +32,8 @@ public class Vehiculo {
     @Column(nullable = false)
     private Double rendimiento;
     @Column(nullable = false)
+    private Integer limitePasajeros;
+    @Column(nullable = false)
     private Boolean activo;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
