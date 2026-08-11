@@ -43,6 +43,8 @@ public interface ViajeRepository extends JpaRepository<Viaje, Integer> {
 
     List<Viaje> findAllByOrderByFechaSalidaDesc();
 
+    List<Viaje> findAllByFechaSalidaBetweenOrderByFechaSalidaDesc(LocalDateTime inicio, LocalDateTime fin);
+
     List<Viaje> findAllByChoferIdPersonaOrderByFechaSalidaDesc(Integer idChofer);
 
     long countByVehiculoIdVehiculoAndStatus(Integer idVehiculo, ViajeStatus status);

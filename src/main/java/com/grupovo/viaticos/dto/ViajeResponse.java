@@ -27,6 +27,9 @@ public record ViajeResponse(
         Double totalCasetas,
         Double totalViaticos,
         Double totalViaje,
+        Double litrosConsumidos,
+        Double costoCombustible,
+        Boolean alertaGasolinaBaja,
         LocalDateTime fechaCreacion
 ) {
 }

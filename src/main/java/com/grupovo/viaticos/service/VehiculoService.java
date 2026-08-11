@@ -41,6 +41,8 @@ public class VehiculoService {
                 .kilometraje(request.kilometraje())
                 .rendimiento(request.rendimiento())
                 .limitePasajeros(request.limitePasajeros())
+                .capacidadTanqueLitros(request.capacidadTanqueLitros())
+                .nivelCombustible(request.capacidadTanqueLitros())
                 .status(request.status())
                 .activo(true)
                 .build();
@@ -56,6 +58,8 @@ public class VehiculoService {
         vehiculo.setKilometraje(request.kilometraje());
         vehiculo.setRendimiento(request.rendimiento());
         vehiculo.setLimitePasajeros(request.limitePasajeros());
+        vehiculo.setCapacidadTanqueLitros(request.capacidadTanqueLitros());
+        vehiculo.setNivelCombustible(Math.min(vehiculo.getNivelCombustible(), request.capacidadTanqueLitros()));
         vehiculo.setStatus(request.status());
         return toResponse(vehiculoRepository.save(vehiculo));
     }
@@ -74,6 +78,11 @@ public class VehiculoService {
         return toResponse(vehiculoRepository.save(vehiculo));
     }
 
+    @Transactional
+    public void actualizarTanque(Vehiculo vehiculo) {
+        vehiculoRepository.save(vehiculo);
+    }
+
     public Vehiculo getVehiculo(Integer id) {
         return vehiculoRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Vehículo no encontrado con id " + id));
@@ -88,6 +97,8 @@ public class VehiculoService {
                 v.getKilometraje(),
                 v.getRendimiento(),
                 v.getLimitePasajeros(),
+                v.getCapacidadTanqueLitros(),
+                v.getNivelCombustible(),
                 v.getActivo(),
                 v.getStatus(),
                 v.getFechaCreacion()

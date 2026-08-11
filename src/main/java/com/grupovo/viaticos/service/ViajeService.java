@@ -31,15 +31,18 @@ public class ViajeService {
     private final VehiculoRepository vehiculoRepository;
     private final PersonaRepository personaRepository;
     private final RutaService rutaService;
+    private final ConfiguracionService configuracionService;
 
     public ViajeService(ViajeRepository viajeRepository,
                         VehiculoRepository vehiculoRepository,
                         PersonaRepository personaRepository,
-                        RutaService rutaService) {
+                        RutaService rutaService,
+                        ConfiguracionService configuracionService) {
         this.viajeRepository = viajeRepository;
         this.vehiculoRepository = vehiculoRepository;
         this.personaRepository = personaRepository;
         this.rutaService = rutaService;
+        this.configuracionService = configuracionService;
     }
 
     @Transactional(readOnly = true)
@@ -155,7 +158,14 @@ public class ViajeService {
             throw new InvalidEntryException("Solo se pueden completar viajes en estado PRÓXIMO");
         }
         viaje.setStatus(ViajeStatus.COMPLETADO);
-        liberarVehiculo(viaje.getVehiculo());
+
+        Vehiculo vehiculo = viaje.getVehiculo();
+        double litrosConsumidos = litrosConsumidos(viaje.getRuta(), vehiculo);
+        vehiculo.setNivelCombustible(Math.max(0.0, vehiculo.getNivelCombustible() - litrosConsumidos));
+        vehiculo.setKilometraje(vehiculo.getKilometraje() + viaje.getRuta().getDistanciaKm());
+        vehiculoRepository.save(vehiculo);
+
+        liberarVehiculo(vehiculo);
         return toResponse(viajeRepository.save(viaje));
     }
 
@@ -208,6 +218,17 @@ public class ViajeService {
         }
     }
 
+    @Transactional
+    public void recalculcarDisponibilidad(Vehiculo vehiculo) {
+        if (vehiculo.getStatus() == VehiculoStatus.MANTENIMIENTO
+                || vehiculo.getStatus() == VehiculoStatus.FUERA_SERVICIO) {
+            return;
+        }
+        long activos = viajeRepository.countByVehiculoIdVehiculoAndStatus(vehiculo.getIdVehiculo(), ViajeStatus.PROXIMO);
+        vehiculo.setStatus(activos == 0 ? VehiculoStatus.DISPONIBLE : VehiculoStatus.EN_SERVICIO);
+        vehiculoRepository.save(vehiculo);
+    }
+
     private VehiculoStatus disponibilidadVehiculo(Vehiculo vehiculo) {
         long activos = viajeRepository.countByVehiculoIdVehiculoAndStatus(vehiculo.getIdVehiculo(), ViajeStatus.PROXIMO);
         return activos == 0 ? VehiculoStatus.DISPONIBLE : VehiculoStatus.EN_SERVICIO;
@@ -231,6 +252,11 @@ public class ViajeService {
                 : 0.0;
         double totalViaje = totalViaticos + totalCasetas;
 
+        double litrosConsumidos = litrosConsumidos(ruta, vehiculo);
+        double costoCombustible = costoCombustible(litrosConsumidos);
+        boolean alertaGasolinaBaja = alertaGasolinaBaja(vehiculo, litrosConsumidos,
+                viaje.getStatus() == ViajeStatus.PROXIMO);
+
         return new ViajeResponse(
                 viaje.getIdViaje(),
                 ruta.getIdRuta(),
@@ -253,7 +279,29 @@ public class ViajeService {
                 Math.round(totalCasetas * 100.0) / 100.0,
                 Math.round(totalViaticos * 100.0) / 100.0,
                 Math.round(totalViaje * 100.0) / 100.0,
+                litrosConsumidos,
+                costoCombustible,
+                alertaGasolinaBaja,
                 viaje.getFechaCreacion()
         );
+    }
+
+    private double litrosConsumidos(Ruta ruta, Vehiculo vehiculo) {
+        double litros = ruta.getDistanciaKm() / vehiculo.getRendimiento();
+        return Math.round(litros * 100.0) / 100.0;
+    }
+
+    private double costoCombustible(double litrosConsumidos) {
+        double precioLitro = configuracionService.getDouble(ConfiguracionService.PRECIO_COMBUSTIBLE, 0.0);
+        return Math.round(litrosConsumidos * precioLitro * 100.0) / 100.0;
+    }
+
+    private boolean alertaGasolinaBaja(Vehiculo vehiculo, double litrosConsumidos, boolean prediccion) {
+        double umbralPct = configuracionService.getDouble(ConfiguracionService.UMBRAL_GASOLINA, 20.0);
+        double nivelEfectivo = prediccion
+                ? vehiculo.getNivelCombustible() - litrosConsumidos
+                : vehiculo.getNivelCombustible();
+        double umbralLitros = vehiculo.getCapacidadTanqueLitros() * umbralPct / 100.0;
+        return nivelEfectivo < umbralLitros;
     }
 }

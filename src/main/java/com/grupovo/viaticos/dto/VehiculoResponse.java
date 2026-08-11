@@ -12,6 +12,8 @@ public record VehiculoResponse(
         Double kilometraje,
         Double rendimiento,
         Integer limitePasajeros,
+        Double capacidadTanqueLitros,
+        Double nivelCombustible,
         Boolean activo,
         VehiculoStatus status,
         LocalDateTime fechaCreacion

@@ -12,6 +12,7 @@ public record VehiculoRequest(
         @NotNull Double kilometraje,
         @NotNull Double rendimiento,
         @NotNull @Min(1) Integer limitePasajeros,
+        @NotNull @Min(1) Double capacidadTanqueLitros,
         @NotNull VehiculoStatus status
 ) {
 }
