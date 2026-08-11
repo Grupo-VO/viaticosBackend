@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -16,7 +17,7 @@ public interface ViajeRepository extends JpaRepository<Viaje, Integer> {
     @Query("""
             SELECT v FROM Viaje v
             WHERE v.vehiculo.idVehiculo = :idVehiculo
-              AND v.status = :status
+              AND v.status IN :statuses
               AND v.fechaSalida <= :fin
               AND :inicio <= v.fechaRegreso
               AND (:idViaje IS NULL OR v.idViaje <> :idViaje)
@@ -24,13 +25,13 @@ public interface ViajeRepository extends JpaRepository<Viaje, Integer> {
     List<Viaje> findConflictingByVehiculo(@Param("idVehiculo") Integer idVehiculo,
                                           @Param("inicio") LocalDateTime inicio,
                                           @Param("fin") LocalDateTime fin,
-                                          @Param("status") ViajeStatus status,
+                                          @Param("statuses") Collection<ViajeStatus> statuses,
                                           @Param("idViaje") Integer idViaje);
 
     @Query("""
             SELECT v FROM Viaje v
             WHERE v.chofer.idPersona = :idChofer
-              AND v.status = :status
+              AND v.status IN :statuses
               AND v.fechaSalida <= :fin
               AND :inicio <= v.fechaRegreso
               AND (:idViaje IS NULL OR v.idViaje <> :idViaje)
@@ -38,7 +39,7 @@ public interface ViajeRepository extends JpaRepository<Viaje, Integer> {
     List<Viaje> findConflictingByChofer(@Param("idChofer") Integer idChofer,
                                         @Param("inicio") LocalDateTime inicio,
                                         @Param("fin") LocalDateTime fin,
-                                        @Param("status") ViajeStatus status,
+                                        @Param("statuses") Collection<ViajeStatus> statuses,
                                         @Param("idViaje") Integer idViaje);
 
     List<Viaje> findAllByOrderByFechaSalidaDesc();
@@ -47,5 +48,13 @@ public interface ViajeRepository extends JpaRepository<Viaje, Integer> {
 
     List<Viaje> findAllByChoferIdPersonaOrderByFechaSalidaDesc(Integer idChofer);
 
+    List<Viaje> findByChoferIdPersonaAndStatusOrderByFechaSalidaAsc(Integer idChofer, ViajeStatus status);
+
+    List<Viaje> findByVehiculoIdVehiculoAndStatusOrderByFechaSalidaAsc(Integer idVehiculo, ViajeStatus status);
+
+    List<Viaje> findByStatusInOrderByFechaSalidaAsc(Collection<ViajeStatus> statuses);
+
     long countByVehiculoIdVehiculoAndStatus(Integer idVehiculo, ViajeStatus status);
+
+    long countByVehiculoIdVehiculoAndStatusIn(Integer idVehiculo, Collection<ViajeStatus> statuses);
 }

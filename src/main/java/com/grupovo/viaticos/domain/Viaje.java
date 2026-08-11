@@ -8,6 +8,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.envers.Audited;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Audited
 @Entity
@@ -22,7 +24,7 @@ public class Viaje {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer idViaje;
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_ruta")
     private Ruta ruta;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -47,8 +49,23 @@ public class Viaje {
     @Column(nullable = false)
     @Builder.Default
     private Boolean excesoCapacidad = false;
+    @Column(columnDefinition = "LONGTEXT")
+    private String polylineCasetas;
+    @Column(columnDefinition = "LONGTEXT")
+    private String polylineLibre;
+    private Double distanciaKm;
+    private Double duracionMinutos;
+    private Double costoComida;
+    private Double costoHospedaje;
+    private LocalDateTime fechaInicio;
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime fechaCreacion;
+    @OneToMany(mappedBy = "viaje", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<ViajeDestino> viajeDestinos = new ArrayList<>();
+    @OneToMany(mappedBy = "viaje", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<ViajeCaseta> viajeCasetas = new ArrayList<>();
 
 }

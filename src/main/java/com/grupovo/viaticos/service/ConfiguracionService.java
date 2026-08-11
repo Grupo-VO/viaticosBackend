@@ -16,6 +16,8 @@ public class ConfiguracionService {
 
     public static final String PRECIO_COMBUSTIBLE = "PRECIO_COMBUSTIBLE";
     public static final String UMBRAL_GASOLINA = "UMBRAL_GASOLINA";
+    public static final String DISTANCIA_ALERTA_METROS = "DISTANCIA_ALERTA_METROS";
+    public static final String RADIO_LLEGADA_METROS = "RADIO_LLEGADA_METROS";
 
     private final ConfiguracionSistemaRepository configuracionRepository;
 

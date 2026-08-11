@@ -61,7 +61,9 @@ public class DataInitializer implements ApplicationRunner {
     private void sembrarConfiguraciones() {
         Map<String, List<String>> valores = Map.of(
                 "PRECIO_COMBUSTIBLE", List.of("24.0", "Costo del litro de gasolina (pesos)"),
-                "UMBRAL_GASOLINA", List.of("20", "Porcentaje del tanque que dispara la alerta de gasolina baja")
+                "UMBRAL_GASOLINA", List.of("20", "Porcentaje del tanque que dispara la alerta de gasolina baja"),
+                "DISTANCIA_ALERTA_METROS", List.of("150", "Distancia en metros a la ruta que dispara la alerta de desviación"),
+                "RADIO_LLEGADA_METROS", List.of("100", "Radio en metros para considerar llegada a un destino")
         );
         valores.forEach((clave, datos) -> {
             if (configuracionRepository.findByClave(clave).isEmpty()) {

@@ -4,6 +4,7 @@ import com.grupovo.viaticos.domain.en.TipoTrayecto;
 import com.grupovo.viaticos.domain.en.ViajeStatus;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record ViajeResponse(
         Integer idViaje,
@@ -30,6 +31,14 @@ public record ViajeResponse(
         Double litrosConsumidos,
         Double costoCombustible,
         Boolean alertaGasolinaBaja,
+        Double distanciaKm,
+        Double duracionMinutos,
+        Double costoComida,
+        Double costoHospedaje,
+        String polylineCasetas,
+        String polylineLibre,
+        List<ViajeDestinoResponse> destinos,
+        List<ViajeCasetaResponse> casetas,
         LocalDateTime fechaCreacion
 ) {
 }

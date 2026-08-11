@@ -56,6 +56,50 @@ public final class PolylineUtils {
         return sb.toString();
     }
 
+    public static String concat(String primera, String segunda) {
+        if (primera == null || primera.isEmpty()) {
+            return segunda;
+        }
+        if (segunda == null || segunda.isEmpty()) {
+            return primera;
+        }
+        List<double[]> puntos = new ArrayList<>(decode(primera));
+        List<double[]> regreso = decode(segunda);
+        double[] ultimo = puntos.get(puntos.size() - 1);
+        double[] primeroRegreso = regreso.get(0);
+        if (distanciaMetros(ultimo[0], ultimo[1], primeroRegreso[0], primeroRegreso[1]) > 1.0) {
+            puntos.add(primeroRegreso);
+        }
+        for (int i = 1; i < regreso.size(); i++) {
+            puntos.add(regreso.get(i));
+        }
+        return encode(puntos);
+    }
+
+    public static double distanciaMetros(double lat1, double lng1, double lat2, double lng2) {
+        double r = 6371000.0;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return r * c;
+    }
+
+    public static double distanciaPuntoASegmento(double lat, double lng,
+                                                 double lat1, double lng1,
+                                                 double lat2, double lng2) {
+        double dx = lng2 - lng1;
+        double dy = lat2 - lat1;
+        double lenSq = dx * dx + dy * dy;
+        double t = lenSq == 0 ? 0 : ((lng - lng1) * dx + (lat - lat1) * dy) / lenSq;
+        t = Math.max(0.0, Math.min(1.0, t));
+        double latProy = lat1 + t * dy;
+        double lngProy = lng1 + t * dx;
+        return distanciaMetros(lat, lng, latProy, lngProy);
+    }
+
     public static String roundTrip(String oneWay) {
         if (oneWay == null || oneWay.isEmpty()) {
             return oneWay;

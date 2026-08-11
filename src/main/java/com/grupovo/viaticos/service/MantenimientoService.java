@@ -70,8 +70,9 @@ public class MantenimientoService {
                 request.idVehiculo(), MantenimientoEstado.EN_CURSO)) {
             throw new InvalidEntryException("El vehículo ya tiene un mantenimiento en curso");
         }
-        if (viajeRepository.countByVehiculoIdVehiculoAndStatus(request.idVehiculo(), ViajeStatus.PROXIMO) > 0) {
-            throw new InvalidEntryException("No se puede registrar un mantenimiento con viajes próximos del vehículo");
+        if (viajeRepository.countByVehiculoIdVehiculoAndStatusIn(request.idVehiculo(),
+                List.of(ViajeStatus.PROXIMO, ViajeStatus.EN_VIAJE)) > 0) {
+            throw new InvalidEntryException("No se puede registrar un mantenimiento con viajes próximos o en curso del vehículo");
         }
 
         String evidenciaRuta = storageService.guardar(evidencia, "mantenimiento");
