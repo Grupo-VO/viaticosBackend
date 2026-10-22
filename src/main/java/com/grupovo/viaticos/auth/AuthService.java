@@ -33,7 +33,7 @@ public class AuthService {
     }
 
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public AuthSession register(RegisterRequest request) {
         if (personaRepository.existsByUsernameIgnoreCase(request.username())) {
             throw new InvalidEntryException("El usuario ya existe");
         }
@@ -51,13 +51,13 @@ public class AuthService {
         persona = personaRepository.save(persona);
 
         Token token = jwtService.generateToken(persona);
-        tokenRepository.save(token);
+        AuthSession session = prepararToken(token);
 
-        return buildAuthResponse(token, persona);
+        return session;
     }
 
     @Transactional
-    public AuthResponse login(LoginRequest request) {
+    public AuthSession login(LoginRequest request) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         request.username(), request.password()
@@ -70,24 +70,28 @@ public class AuthService {
         revokeAllTokens(persona);
 
         Token token = jwtService.generateToken(persona);
-        tokenRepository.save(token);
+        AuthSession session = prepararToken(token);
 
-        return buildAuthResponse(token, persona);
+        return session;
     }
 
     @Transactional
-    public AuthResponse refreshToken(String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+    public AuthSession refreshToken(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
             throw new InvalidEntryException("Token de refresco inválido");
         }
 
-        final String refreshToken = authHeader.substring(7);
-        final String username = jwtService.extractUsername(refreshToken);
+        final String username;
+        try {
+            username = jwtService.extractUsername(refreshToken);
+        } catch (Exception ex) {
+            throw new InvalidEntryException("Token de refresco inválido");
+        }
 
         Persona persona = personaRepository.findByUsernameIgnoreCase(username)
                 .orElseThrow(() -> new InvalidEntryException("Usuario no encontrado"));
 
-        var storedToken = tokenRepository.findByRefreshToken(refreshToken).orElse(null);
+        var storedToken = tokenRepository.findByRefreshTokenHash(jwtService.hashRefreshToken(refreshToken)).orElse(null);
         if (storedToken == null || storedToken.getIsRevoked() || storedToken.getIsExpired()) {
             throw new InvalidEntryException("Token de refresco inválido o expirado");
         }
@@ -101,21 +105,22 @@ public class AuthService {
         revokeAllTokens(persona);
 
         Token newToken = jwtService.generateToken(persona);
-        tokenRepository.save(newToken);
+        AuthSession session = prepararToken(newToken);
 
-        return buildAuthResponse(newToken, persona);
+        return session;
     }
 
     @Transactional
-    public void logout(String authHeader) {
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            final String token = authHeader.substring(7);
-            var storedToken = tokenRepository.findByToken(token).orElse(null);
-            if (storedToken != null) {
-                storedToken.setIsRevoked(true);
-                storedToken.setIsExpired(true);
-                tokenRepository.save(storedToken);
-            }
+    public void logout(String accessToken, String refreshToken) {
+        var storedToken = refreshToken == null ? null
+                : tokenRepository.findByRefreshTokenHash(jwtService.hashRefreshToken(refreshToken)).orElse(null);
+        if (storedToken == null && accessToken != null) {
+            storedToken = tokenRepository.findByToken(accessToken).orElse(null);
+        }
+        if (storedToken != null) {
+            storedToken.setIsRevoked(true);
+            storedToken.setIsExpired(true);
+            tokenRepository.save(storedToken);
         }
     }
 
@@ -128,10 +133,17 @@ public class AuthService {
         tokenRepository.saveAll(tokens);
     }
 
-    private AuthResponse buildAuthResponse(Token token, Persona persona) {
+    private AuthSession prepararToken(Token token) {
+        String refreshToken = token.getRefreshToken();
+        token.setRefreshTokenHash(jwtService.hashRefreshToken(refreshToken));
+        token.setRefreshToken(null);
+        return new AuthSession(tokenRepository.save(token), refreshToken);
+    }
+
+    public AuthResponse sesion(String username) {
+        Persona persona = personaRepository.findByUsernameIgnoreCase(username)
+                .orElseThrow(() -> new InvalidEntryException("Usuario no encontrado"));
         return new AuthResponse(
-                token.getToken(),
-                token.getRefreshToken(),
                 persona.getUsername(),
                 persona.getNombre() + " " + persona.getApellidoPaterno(),
                 persona.getRole().name()

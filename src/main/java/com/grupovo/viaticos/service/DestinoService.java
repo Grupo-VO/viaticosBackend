@@ -34,8 +34,11 @@ public class DestinoService {
 
     @Transactional
     public DestinoResponse crear(DestinoRequest request) {
+        String nombre = normalizar(request.nombre());
+        validarCoordenadas(request.latitud(), request.longitud());
+        validarNombreDisponible(nombre, null);
         Destino destino = Destino.builder()
-                .nombre(request.nombre().trim())
+                .nombre(nombre)
                 .direccion(request.direccion().trim())
                 .latitud(request.latitud())
                 .longitud(request.longitud())
@@ -47,7 +50,10 @@ public class DestinoService {
     @Transactional
     public DestinoResponse actualizar(Integer id, DestinoRequest request) {
         Destino destino = getDestino(id);
-        destino.setNombre(request.nombre().trim());
+        String nombre = normalizar(request.nombre());
+        validarCoordenadas(request.latitud(), request.longitud());
+        validarNombreDisponible(nombre, id);
+        destino.setNombre(nombre);
         destino.setDireccion(request.direccion().trim());
         destino.setLatitud(request.latitud());
         destino.setLongitud(request.longitud());
@@ -78,5 +84,25 @@ public class DestinoService {
                 d.getLongitud(),
                 d.getActivo()
         );
+    }
+
+    private String normalizar(String valor) {
+        return valor.trim();
+    }
+
+    private void validarCoordenadas(Double latitud, Double longitud) {
+        if (latitud == null || latitud < -90 || latitud > 90
+                || longitud == null || longitud < -180 || longitud > 180) {
+            throw new InvalidEntryException("Las coordenadas del destino no son válidas");
+        }
+    }
+
+    private void validarNombreDisponible(String nombre, Integer idDestino) {
+        boolean existe = idDestino == null
+                ? destinoRepository.existsByNombreIgnoreCase(nombre)
+                : destinoRepository.existsByNombreIgnoreCaseAndIdDestinoNot(nombre, idDestino);
+        if (existe) {
+            throw new InvalidEntryException("Ya existe un destino con ese nombre");
+        }
     }
 }

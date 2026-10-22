@@ -28,7 +28,7 @@ public class Persona {
     @Column(nullable = false, length = 100)
     private String apellidoMaterno;
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private Role role;
     @Column(nullable = false)
     private Boolean activa;
@@ -39,5 +39,7 @@ public class Persona {
     private String username;
     @Column(nullable = false, length = 100)
     private String password;
+    @Column(length = 255)
+    private String foto;
 
 }

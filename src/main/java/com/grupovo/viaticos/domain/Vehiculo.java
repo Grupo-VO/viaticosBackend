@@ -40,7 +40,7 @@ public class Vehiculo {
     @Column(nullable = false)
     private Boolean activo;
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private VehiculoStatus status;
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

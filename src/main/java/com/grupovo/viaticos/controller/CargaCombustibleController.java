@@ -31,11 +31,13 @@ public class CargaCombustibleController {
     }
 
     @GetMapping("/vehiculo/{idVehiculo}")
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR', 'AUDITORIA', 'CHOFER')")
     public ResponseEntity<List<CargaCombustibleResponse>> listarPorVehiculo(@PathVariable Integer idVehiculo) {
         return ResponseEntity.ok(cargaCombustibleService.listarPorVehiculo(idVehiculo));
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR', 'AUDITORIA', 'CHOFER')")
     public ResponseEntity<CargaCombustibleResponse> obtener(@PathVariable Integer id) {
         return ResponseEntity.ok(cargaCombustibleService.obtener(id));
     }
@@ -49,6 +51,7 @@ public class CargaCombustibleController {
     }
 
     @GetMapping("/{id}/comprobante")
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR', 'AUDITORIA', 'CHOFER')")
     public ResponseEntity<Resource> descargarComprobante(@PathVariable Integer id) {
         Resource resource = cargaCombustibleService.descargarComprobante(id);
         return ResponseEntity.ok()

@@ -60,6 +60,11 @@ public class CargaCombustibleService {
         if (request.odometro() < vehiculo.getKilometraje()) {
             throw new InvalidEntryException("El odómetro no puede ser menor al kilometraje actual del vehículo");
         }
+        double combustibleDisponible = vehiculo.getCapacidadTanqueLitros() - vehiculo.getNivelCombustible();
+        if (request.litros() > combustibleDisponible + 0.0001) {
+            throw new InvalidEntryException("La carga excede el espacio disponible del tanque (" +
+                    Math.round(combustibleDisponible * 100.0) / 100.0 + " L)");
+        }
 
         double precioLitro = configuracionService.getDouble(ConfiguracionService.PRECIO_COMBUSTIBLE, 0.0);
         double costoTotal = Math.round(request.litros() * precioLitro * 100.0) / 100.0;
@@ -75,7 +80,7 @@ public class CargaCombustibleService {
                 .build();
 
         double nivelActualizado = vehiculo.getNivelCombustible() + request.litros();
-        vehiculo.setNivelCombustible(Math.min(nivelActualizado, vehiculo.getCapacidadTanqueLitros()));
+        vehiculo.setNivelCombustible(nivelActualizado);
         vehiculo.setKilometraje(Math.max(vehiculo.getKilometraje(), request.odometro()));
         vehiculoService.actualizarTanque(vehiculo);
 

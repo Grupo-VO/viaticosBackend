@@ -2,6 +2,7 @@ package com.grupovo.viaticos.controller;
 
 import com.grupovo.viaticos.dto.ReporteIncidenteRequest;
 import com.grupovo.viaticos.dto.ReporteIncidenteResponse;
+import com.grupovo.viaticos.domain.en.ReporteIncidenteEstado;
 import com.grupovo.viaticos.service.ReporteIncidenteService;
 import jakarta.validation.Valid;
 import org.springframework.core.io.Resource;
@@ -25,17 +26,19 @@ public class ReporteIncidenteController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR', 'AUDITORIA', 'USUARIO_AUTORIZADO', 'CHOFER')")
     public ResponseEntity<List<ReporteIncidenteResponse>> listar() {
         return ResponseEntity.ok(reporteIncidenteService.listar());
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR', 'AUDITORIA', 'USUARIO_AUTORIZADO', 'CHOFER')")
     public ResponseEntity<ReporteIncidenteResponse> obtener(@PathVariable Integer id) {
         return ResponseEntity.ok(reporteIncidenteService.obtener(id));
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR', 'USUARIO_AUTORIZADO', 'CHOFER')")
     public ResponseEntity<ReporteIncidenteResponse> crear(
             @RequestPart("request") @Valid ReporteIncidenteRequest request,
             @RequestPart(value = "evidencia", required = false) MultipartFile evidencia) {
@@ -43,12 +46,21 @@ public class ReporteIncidenteController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
         reporteIncidenteService.eliminar(id);
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/{id}/estado")
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR', 'USUARIO_AUTORIZADO')")
+    public ResponseEntity<ReporteIncidenteResponse> cambiarEstado(
+            @PathVariable Integer id, @RequestBody ReporteIncidenteEstado estado) {
+        return ResponseEntity.ok(reporteIncidenteService.cambiarEstado(id, estado));
+    }
+
     @GetMapping("/{id}/evidencia")
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR', 'AUDITORIA', 'USUARIO_AUTORIZADO', 'CHOFER')")
     public ResponseEntity<Resource> descargarEvidencia(@PathVariable Integer id) {
         Resource resource = reporteIncidenteService.descargarEvidencia(id);
         return ResponseEntity.ok()

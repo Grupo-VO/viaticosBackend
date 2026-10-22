@@ -15,6 +15,10 @@ public record RutaResponse(
         Double costoTotalCasetas,
         String polylineCasetas,
         String polylineLibre,
+        String polylineCasetasIda,
+        String polylineCasetasRegreso,
+        String polylineLibreIda,
+        String polylineLibreRegreso,
         List<CasetaResponse> casetas,
         Boolean activo
 ) {

@@ -37,8 +37,15 @@ public record ViajeResponse(
         Double costoHospedaje,
         String polylineCasetas,
         String polylineLibre,
+        String polylineCasetasIda,
+        String polylineCasetasRegreso,
+        String polylineLibreIda,
+        String polylineLibreRegreso,
         List<ViajeDestinoResponse> destinos,
         List<ViajeCasetaResponse> casetas,
-        LocalDateTime fechaCreacion
+        LocalDateTime fechaCreacion,
+        Double nivelCombustibleActual,
+        Double combustibleRequerido,
+        Double combustibleFaltante
 ) {
 }

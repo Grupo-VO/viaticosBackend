@@ -6,4 +6,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface VehiculoRepository extends JpaRepository<Vehiculo, Integer> {
+    boolean existsByPlacaIgnoreCase(String placa);
+
+    boolean existsByPlacaIgnoreCaseAndIdVehiculoNot(String placa, Integer idVehiculo);
 }

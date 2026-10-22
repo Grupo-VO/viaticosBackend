@@ -43,6 +43,9 @@ public class DataInitializer implements ApplicationRunner {
         if (!enabled) {
             return;
         }
+        if (username == null || username.isBlank() || password == null || password.isBlank()) {
+            throw new IllegalStateException("SEED_ADMIN_USERNAME y SEED_ADMIN_PASSWORD son obligatorios cuando SEED_ADMIN_ENABLED=true");
+        }
         if (personaRepository.count() == 0) {
             Persona admin = Persona.builder()
                     .nombre("Administrador")
@@ -62,8 +65,9 @@ public class DataInitializer implements ApplicationRunner {
         Map<String, List<String>> valores = Map.of(
                 "PRECIO_COMBUSTIBLE", List.of("24.0", "Costo del litro de gasolina (pesos)"),
                 "UMBRAL_GASOLINA", List.of("20", "Porcentaje del tanque que dispara la alerta de gasolina baja"),
-                "DISTANCIA_ALERTA_METROS", List.of("150", "Distancia en metros a la ruta que dispara la alerta de desviación"),
-                "RADIO_LLEGADA_METROS", List.of("100", "Radio en metros para considerar llegada a un destino")
+                "DISTANCIA_ALERTA_METROS", List.of("500", "Distancia en metros a la ruta que dispara la alerta de desviación"),
+                "RADIO_LLEGADA_METROS", List.of("100", "Radio en metros para considerar llegada a un destino"),
+                "TIEMPO_SIN_COMUNICACION_SEGUNDOS", List.of("90", "Tiempo sin ubicacion que dispara alerta de comunicacion perdida")
         );
         valores.forEach((clave, datos) -> {
             if (configuracionRepository.findByClave(clave).isEmpty()) {

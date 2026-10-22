@@ -5,6 +5,7 @@ import com.grupovo.viaticos.domain.en.VehiculoStatus;
 import com.grupovo.viaticos.dto.VehiculoRequest;
 import com.grupovo.viaticos.dto.VehiculoResponse;
 import com.grupovo.viaticos.exception.NotFoundException;
+import com.grupovo.viaticos.exception.InvalidEntryException;
 import com.grupovo.viaticos.repository.VehiculoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,10 +35,12 @@ public class VehiculoService {
 
     @Transactional
     public VehiculoResponse crear(VehiculoRequest request) {
+        String placa = normalizarPlaca(request.placa());
+        validarPlacaDisponible(placa, null);
         Vehiculo vehiculo = Vehiculo.builder()
                 .marca(request.marca().trim())
                 .modelo(request.modelo().trim())
-                .placa(request.placa().trim())
+                .placa(placa)
                 .kilometraje(request.kilometraje())
                 .rendimiento(request.rendimiento())
                 .limitePasajeros(request.limitePasajeros())
@@ -52,9 +55,11 @@ public class VehiculoService {
     @Transactional
     public VehiculoResponse actualizar(Integer id, VehiculoRequest request) {
         Vehiculo vehiculo = getVehiculo(id);
+        String placa = normalizarPlaca(request.placa());
+        validarPlacaDisponible(placa, id);
         vehiculo.setMarca(request.marca().trim());
         vehiculo.setModelo(request.modelo().trim());
-        vehiculo.setPlaca(request.placa().trim());
+        vehiculo.setPlaca(placa);
         vehiculo.setKilometraje(request.kilometraje());
         vehiculo.setRendimiento(request.rendimiento());
         vehiculo.setLimitePasajeros(request.limitePasajeros());
@@ -66,6 +71,9 @@ public class VehiculoService {
 
     @Transactional
     public VehiculoResponse cambiarEstado(Integer id, Boolean activo) {
+        if (activo == null) {
+            throw new InvalidEntryException("El estado activo es obligatorio");
+        }
         Vehiculo vehiculo = getVehiculo(id);
         vehiculo.setActivo(activo);
         return toResponse(vehiculoRepository.save(vehiculo));
@@ -86,6 +94,19 @@ public class VehiculoService {
     public Vehiculo getVehiculo(Integer id) {
         return vehiculoRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Vehículo no encontrado con id " + id));
+    }
+
+    private String normalizarPlaca(String placa) {
+        return placa.trim().toUpperCase();
+    }
+
+    private void validarPlacaDisponible(String placa, Integer idVehiculo) {
+        boolean existe = idVehiculo == null
+                ? vehiculoRepository.existsByPlacaIgnoreCase(placa)
+                : vehiculoRepository.existsByPlacaIgnoreCaseAndIdVehiculoNot(placa, idVehiculo);
+        if (existe) {
+            throw new InvalidEntryException("La placa ya está registrada");
+        }
     }
 
     private VehiculoResponse toResponse(Vehiculo v) {

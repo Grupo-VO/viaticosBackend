@@ -44,6 +44,14 @@ public class Ruta {
     private String polylineCasetas;
     @Column(columnDefinition = "LONGTEXT")
     private String polylineLibre;
+    @Column(columnDefinition = "LONGTEXT")
+    private String polylineCasetasIda;
+    @Column(columnDefinition = "LONGTEXT")
+    private String polylineCasetasRegreso;
+    @Column(columnDefinition = "LONGTEXT")
+    private String polylineLibreIda;
+    @Column(columnDefinition = "LONGTEXT")
+    private String polylineLibreRegreso;
     @Column(nullable = false)
     private Boolean activo;
     @CreationTimestamp

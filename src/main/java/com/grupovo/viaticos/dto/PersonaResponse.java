@@ -12,6 +12,7 @@ public record PersonaResponse(
         String username,
         Role role,
         Boolean activa,
+        String foto,
         LocalDateTime fechaCreacion
 ) {
 }

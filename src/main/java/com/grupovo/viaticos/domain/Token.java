@@ -22,6 +22,8 @@ public class Token {
     private String token;
     @Column(columnDefinition = "TEXT")
     private String refreshToken;
+    @Column(unique = true, length = 64)
+    private String refreshTokenHash;
     private Boolean isRevoked;
     private Boolean isExpired;
     @Enumerated(EnumType.STRING)

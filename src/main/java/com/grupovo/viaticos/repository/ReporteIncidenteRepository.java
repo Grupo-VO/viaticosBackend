@@ -12,4 +12,6 @@ public interface ReporteIncidenteRepository extends JpaRepository<ReporteInciden
     List<ReporteIncidente> findAllByOrderByFechaDesc();
 
     List<ReporteIncidente> findAllByCreadoPorIdPersonaOrderByFechaDesc(Integer idPersona);
+
+    List<ReporteIncidente> findAllByViajeIdViajeOrderByFechaDesc(Integer idViaje);
 }

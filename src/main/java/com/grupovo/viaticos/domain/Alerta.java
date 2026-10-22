@@ -27,7 +27,7 @@ public class Alerta {
     @JoinColumn(name = "id_vehiculo")
     private Vehiculo vehiculo;
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private AlertaTipo tipo;
     @Column(nullable = false, length = 255)
     private String mensaje;

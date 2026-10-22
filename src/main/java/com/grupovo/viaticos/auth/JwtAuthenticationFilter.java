@@ -7,6 +7,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.Cookie;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -43,18 +44,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getServletPath();
         if (path.equals("/api/v1/auth/login")
                 || path.equals("/api/v1/auth/refresh-token")
-                || path.equals("/api/v1/auth/logout")) {
+                || path.equals("/api/v1/auth/logout")
+                || path.equals("/api/v1/auth/csrf")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        final String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        String jwt = cookieValue(request, "VO_ACCESS");
+        if (jwt == null || jwt.isBlank()) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        final String jwt = authHeader.substring(7);
         final String username;
         try {
             username = jwtService.extractUsername(jwt);
@@ -75,7 +76,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         var storedToken = tokenRepository.findByToken(jwt).orElse(null);
-        if (storedToken == null || storedToken.getIsRevoked() || storedToken.getIsExpired()) {
+        if (storedToken == null || storedToken.getIsRevoked() || storedToken.getIsExpired()
+                || storedToken.getRefreshTokenHash() == null) {
             writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "token_invalid", "Token is invalid or revoked");
             return;
         }
@@ -93,6 +95,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(authToken);
 
         filterChain.doFilter(request, response);
+    }
+
+    private String cookieValue(HttpServletRequest request, String name) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) return null;
+        for (Cookie cookie : cookies) {
+            if (name.equals(cookie.getName())) return cookie.getValue();
+        }
+        return null;
     }
 
     private void writeError(HttpServletResponse response, int status, String error, String message) throws IOException {

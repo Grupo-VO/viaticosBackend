@@ -6,4 +6,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface DestinoRepository extends JpaRepository<Destino, Integer> {
+    boolean existsByNombreIgnoreCase(String nombre);
+
+    boolean existsByNombreIgnoreCaseAndIdDestinoNot(String nombre, Integer idDestino);
 }

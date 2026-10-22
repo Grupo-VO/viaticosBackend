@@ -27,6 +27,8 @@ public class Viaje {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_ruta")
     private Ruta ruta;
+    @Column(length = 100)
+    private String nombreRutaSnapshot;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "id_vehiculo")
     private Vehiculo vehiculo;
@@ -40,10 +42,10 @@ public class Viaje {
     @Column(nullable = false)
     private LocalDateTime fechaRegreso;
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private TipoTrayecto tipoTrayecto;
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     @Builder.Default
     private ViajeStatus status = ViajeStatus.PROXIMO;
     @Column(nullable = false)
@@ -53,6 +55,14 @@ public class Viaje {
     private String polylineCasetas;
     @Column(columnDefinition = "LONGTEXT")
     private String polylineLibre;
+    @Column(columnDefinition = "LONGTEXT")
+    private String polylineCasetasIda;
+    @Column(columnDefinition = "LONGTEXT")
+    private String polylineCasetasRegreso;
+    @Column(columnDefinition = "LONGTEXT")
+    private String polylineLibreIda;
+    @Column(columnDefinition = "LONGTEXT")
+    private String polylineLibreRegreso;
     private Double distanciaKm;
     private Double duracionMinutos;
     private Double costoComida;

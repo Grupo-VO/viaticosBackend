@@ -5,9 +5,14 @@ import com.grupovo.viaticos.dto.PersonaRequest;
 import com.grupovo.viaticos.dto.PersonaResponse;
 import com.grupovo.viaticos.service.PersonaService;
 import jakarta.validation.Valid;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.MediaTypeFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -52,5 +57,22 @@ public class PersonaController {
     public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
         personaService.eliminar(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/foto")
+    public ResponseEntity<PersonaResponse> subirFoto(@PathVariable Integer id,
+                                                     @RequestPart("foto") MultipartFile foto) {
+        personaService.subirFoto(id, foto);
+        return ResponseEntity.ok(personaService.obtener(id));
+    }
+
+    @GetMapping("/{id}/foto")
+    public ResponseEntity<Resource> obtenerFoto(@PathVariable Integer id) {
+        Resource resource = personaService.obtenerFoto(id);
+        return ResponseEntity.ok()
+                .contentType(MediaTypeFactory.getMediaType(resource)
+                        .orElse(MediaType.APPLICATION_OCTET_STREAM))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .body(resource);
     }
 }

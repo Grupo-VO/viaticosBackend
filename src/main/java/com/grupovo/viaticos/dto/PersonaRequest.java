@@ -9,8 +9,9 @@ public record PersonaRequest(
         @NotBlank String apellidoPaterno,
         @NotBlank String apellidoMaterno,
         @NotBlank String username,
-        @NotBlank String password,
+        String password,
         @NotNull Role role,
-        Boolean activa
+        Boolean activa,
+        String foto
 ) {
 }

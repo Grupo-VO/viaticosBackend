@@ -2,6 +2,7 @@ package com.grupovo.viaticos.controller;
 
 import com.grupovo.viaticos.dto.RutaRequest;
 import com.grupovo.viaticos.dto.RutaResponse;
+import com.grupovo.viaticos.dto.RutaTrazoRequest;
 import com.grupovo.viaticos.service.RutaService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -47,6 +48,13 @@ public class RutaController {
     @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<RutaResponse> refrescar(@PathVariable Integer id) {
         return ResponseEntity.ok(rutaService.refrescar(id));
+    }
+
+    @PatchMapping("/{id}/trazo")
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public ResponseEntity<RutaResponse> actualizarTrazo(@PathVariable Integer id,
+                                                        @Valid @RequestBody RutaTrazoRequest request) {
+        return ResponseEntity.ok(rutaService.actualizarTrazo(id, request));
     }
 
     @PatchMapping("/{id}/estado")

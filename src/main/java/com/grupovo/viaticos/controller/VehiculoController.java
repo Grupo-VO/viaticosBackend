@@ -22,11 +22,13 @@ public class VehiculoController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR', 'AUDITORIA', 'USUARIO_AUTORIZADO', 'CHOFER')")
     public ResponseEntity<List<VehiculoResponse>> listar() {
         return ResponseEntity.ok(vehiculoService.listar());
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMINISTRADOR', 'AUDITORIA', 'USUARIO_AUTORIZADO', 'CHOFER')")
     public ResponseEntity<VehiculoResponse> obtener(@PathVariable Integer id) {
         return ResponseEntity.ok(vehiculoService.obtener(id));
     }

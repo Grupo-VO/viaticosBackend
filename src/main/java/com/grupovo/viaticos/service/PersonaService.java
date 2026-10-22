@@ -9,9 +9,11 @@ import com.grupovo.viaticos.exception.InvalidEntryException;
 import com.grupovo.viaticos.exception.NotFoundException;
 import com.grupovo.viaticos.repository.PersonaRepository;
 import com.grupovo.viaticos.repository.TokenRepository;
+import org.springframework.core.io.Resource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -21,13 +23,16 @@ public class PersonaService {
     private final PersonaRepository personaRepository;
     private final TokenRepository tokenRepository;
     private final PasswordEncoder passwordEncoder;
+    private final StorageService storageService;
 
     public PersonaService(PersonaRepository personaRepository,
                           TokenRepository tokenRepository,
-                          PasswordEncoder passwordEncoder) {
+                          PasswordEncoder passwordEncoder,
+                          StorageService storageService) {
         this.personaRepository = personaRepository;
         this.tokenRepository = tokenRepository;
         this.passwordEncoder = passwordEncoder;
+        this.storageService = storageService;
     }
 
     @Transactional(readOnly = true)
@@ -45,6 +50,9 @@ public class PersonaService {
 
     @Transactional
     public PersonaResponse crear(PersonaRequest request) {
+        if (request.password() == null || request.password().isBlank()) {
+            throw new InvalidEntryException("La contraseña es obligatoria al crear una persona");
+        }
         if (personaRepository.existsByUsernameIgnoreCase(request.username())) {
             throw new InvalidEntryException("El usuario ya existe");
         }
@@ -115,6 +123,26 @@ public class PersonaService {
                 .orElseThrow(() -> new NotFoundException("Persona no encontrada con id " + id));
     }
 
+    @Transactional
+    public String subirFoto(Integer id, MultipartFile archivo) {
+        Persona persona = getPersona(id);
+        if (persona.getFoto() != null) {
+            storageService.eliminar(persona.getFoto());
+        }
+        String ruta = storageService.guardar(archivo, "personas");
+        persona.setFoto(ruta);
+        personaRepository.save(persona);
+        return ruta;
+    }
+
+    public Resource obtenerFoto(Integer id) {
+        Persona persona = getPersona(id);
+        if (persona.getFoto() == null || persona.getFoto().isBlank()) {
+            throw new NotFoundException("La persona no tiene foto");
+        }
+        return storageService.cargar(persona.getFoto());
+    }
+
     private PersonaResponse toResponse(Persona p) {
         return new PersonaResponse(
                 p.getIdPersona(),
@@ -124,6 +152,7 @@ public class PersonaService {
                 p.getUsername(),
                 p.getRole(),
                 p.getActiva(),
+                p.getFoto(),
                 p.getFechaCreacion()
         );
     }

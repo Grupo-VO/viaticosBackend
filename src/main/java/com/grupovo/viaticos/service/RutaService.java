@@ -7,6 +7,7 @@ import com.grupovo.viaticos.dto.CasetaResponse;
 import com.grupovo.viaticos.dto.DestinoResponse;
 import com.grupovo.viaticos.dto.RutaRequest;
 import com.grupovo.viaticos.dto.RutaResponse;
+import com.grupovo.viaticos.dto.RutaTrazoRequest;
 import com.grupovo.viaticos.exception.InvalidEntryException;
 import com.grupovo.viaticos.exception.NotFoundException;
 import com.grupovo.viaticos.gmaps.GoogleMapsService;
@@ -49,12 +50,8 @@ public class RutaService {
     public RutaResponse crear(RutaRequest request) {
         Destino origen = destinoService.getDestino(request.idOrigen());
         Destino destino = destinoService.getDestino(request.idDestino());
-        if (origen.getIdDestino().equals(destino.getIdDestino())) {
-            throw new InvalidEntryException("El origen y el destino deben ser diferentes");
-        }
-        if (!origen.getActivo() || !destino.getActivo()) {
-            throw new InvalidEntryException("El origen y el destino deben estar activos");
-        }
+        validarDestinos(request.idOrigen(), request.idDestino());
+        validarDestinosActivos(origen, destino);
 
         GoogleMapsService.RouteData routeData = googleMapsService.calcularRutaRedonda(origen, destino);
 
@@ -67,8 +64,12 @@ public class RutaService {
                 .distanciaKm(routeData.distanciaKm())
                 .costoComida(request.costoComida())
                 .costoHospedaje(request.costoHospedaje())
-                .polylineCasetas(routeData.polylineCasetas())
-                .polylineLibre(routeData.polylineLibre())
+                 .polylineCasetas(routeData.polylineCasetas())
+                 .polylineLibre(routeData.polylineLibre())
+                 .polylineCasetasIda(routeData.polylineCasetasIda())
+                 .polylineCasetasRegreso(routeData.polylineCasetasRegreso())
+                 .polylineLibreIda(routeData.polylineLibreIda())
+                 .polylineLibreRegreso(routeData.polylineLibreRegreso())
                 .activo(true)
                 .build();
 
@@ -94,6 +95,10 @@ public class RutaService {
     @Transactional
     public RutaResponse actualizar(Integer id, RutaRequest request) {
         Ruta ruta = getRuta(id);
+        validarDestinos(request.idOrigen(), request.idDestino());
+        Destino origen = destinoService.getDestino(request.idOrigen());
+        Destino destino = destinoService.getDestino(request.idDestino());
+        validarDestinosActivos(origen, destino);
         boolean recalc = !ruta.getOrigen().getIdDestino().equals(request.idOrigen())
                 || !ruta.getDestino().getIdDestino().equals(request.idDestino())
                 || !ruta.getUsaCasetas().equals(request.usaCasetas());
@@ -103,11 +108,6 @@ public class RutaService {
         ruta.setCostoHospedaje(request.costoHospedaje());
 
         if (recalc) {
-            Destino origen = destinoService.getDestino(request.idOrigen());
-            Destino destino = destinoService.getDestino(request.idDestino());
-            if (origen.getIdDestino().equals(destino.getIdDestino())) {
-                throw new InvalidEntryException("El origen y el destino deben ser diferentes");
-            }
             ruta.setOrigen(origen);
             ruta.setDestino(destino);
             ruta.setUsaCasetas(request.usaCasetas());
@@ -117,6 +117,10 @@ public class RutaService {
             ruta.setDistanciaKm(routeData.distanciaKm());
             ruta.setPolylineCasetas(routeData.polylineCasetas());
             ruta.setPolylineLibre(routeData.polylineLibre());
+            ruta.setPolylineCasetasIda(routeData.polylineCasetasIda());
+            ruta.setPolylineCasetasRegreso(routeData.polylineCasetasRegreso());
+            ruta.setPolylineLibreIda(routeData.polylineLibreIda());
+            ruta.setPolylineLibreRegreso(routeData.polylineLibreRegreso());
 
             ruta.getCasetas().clear();
             if (request.usaCasetas()) {
@@ -147,6 +151,10 @@ public class RutaService {
         ruta.setDistanciaKm(routeData.distanciaKm());
         ruta.setPolylineCasetas(routeData.polylineCasetas());
         ruta.setPolylineLibre(routeData.polylineLibre());
+        ruta.setPolylineCasetasIda(routeData.polylineCasetasIda());
+        ruta.setPolylineCasetasRegreso(routeData.polylineCasetasRegreso());
+        ruta.setPolylineLibreIda(routeData.polylineLibreIda());
+        ruta.setPolylineLibreRegreso(routeData.polylineLibreRegreso());
 
         ruta.getCasetas().clear();
         if (ruta.getUsaCasetas()) {
@@ -167,7 +175,30 @@ public class RutaService {
     }
 
     @Transactional
+    public RutaResponse actualizarTrazo(Integer id, RutaTrazoRequest request) {
+        Ruta ruta = getRuta(id);
+        if (!"CASETA".equalsIgnoreCase(request.tipo()) && !"LIBRE".equalsIgnoreCase(request.tipo())) {
+            throw new InvalidEntryException("El tipo de trazo debe ser CASETA o LIBRE");
+        }
+        if ("CASETA".equalsIgnoreCase(request.tipo())) {
+            ruta.setPolylineCasetas(request.polyline());
+            ruta.setPolylineCasetasIda(request.polylineIda() == null ? request.polyline() : request.polylineIda());
+            ruta.setPolylineCasetasRegreso(request.polylineRegreso());
+        } else {
+            ruta.setPolylineLibre(request.polyline());
+            ruta.setPolylineLibreIda(request.polylineIda() == null ? request.polyline() : request.polylineIda());
+            ruta.setPolylineLibreRegreso(request.polylineRegreso());
+        }
+        ruta.setDistanciaKm(request.distanciaKm());
+        ruta.setDuracionMinutos(request.duracionMinutos());
+        return toResponse(rutaRepository.save(ruta));
+    }
+
+    @Transactional
     public void cambiarEstado(Integer id, Boolean activo) {
+        if (activo == null) {
+            throw new InvalidEntryException("El estado activo es obligatorio");
+        }
         Ruta ruta = getRuta(id);
         ruta.setActivo(activo);
         rutaRepository.save(ruta);
@@ -182,7 +213,7 @@ public class RutaService {
         double suma = ruta.getCasetas().stream()
                 .mapToDouble(Caseta::getCosto)
                 .sum();
-        return Math.round(suma * 2 * 100.0) / 100.0;
+        return Math.round(suma * 100.0) / 100.0;
     }
 
     private RutaResponse toResponse(Ruta ruta) {
@@ -203,9 +234,13 @@ public class RutaService {
                 ruta.getCostoComida(),
                 ruta.getCostoHospedaje(),
                 costoTotalCasetas(ruta),
-                ruta.getPolylineCasetas(),
-                ruta.getPolylineLibre(),
-                casetas,
+                 ruta.getPolylineCasetas(),
+                 ruta.getPolylineLibre(),
+                 ruta.getPolylineCasetasIda(),
+                 ruta.getPolylineCasetasRegreso(),
+                 ruta.getPolylineLibreIda(),
+                 ruta.getPolylineLibreRegreso(),
+                 casetas,
                 ruta.getActivo()
         );
     }
@@ -214,5 +249,17 @@ public class RutaService {
         return new DestinoResponse(
                 d.getIdDestino(), d.getNombre(), d.getDireccion(),
                 d.getLatitud(), d.getLongitud(), d.getActivo());
+    }
+
+    private void validarDestinos(Integer idOrigen, Integer idDestino) {
+        if (idOrigen.equals(idDestino)) {
+            throw new InvalidEntryException("El origen y el destino deben ser diferentes");
+        }
+    }
+
+    private void validarDestinosActivos(Destino origen, Destino destino) {
+        if (!origen.getActivo() || !destino.getActivo()) {
+            throw new InvalidEntryException("El origen y el destino deben estar activos");
+        }
     }
 }

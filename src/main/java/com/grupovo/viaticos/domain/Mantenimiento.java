@@ -26,10 +26,10 @@ public class Mantenimiento {
     @JoinColumn(name = "id_vehiculo")
     private Vehiculo vehiculo;
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     private MantenimientoTipo tipo;
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 20)
     @Builder.Default
     private MantenimientoEstado estado = MantenimientoEstado.EN_CURSO;
     @Column(nullable = false)

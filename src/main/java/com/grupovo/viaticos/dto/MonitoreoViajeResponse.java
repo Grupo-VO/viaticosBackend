@@ -22,6 +22,7 @@ public record MonitoreoViajeResponse(
         List<AlertaResponse> alertasActivas,
         Double nivelCombustible,
         Double capacidadTanqueLitros,
-        LocalDateTime fechaSalida
+        LocalDateTime fechaSalida,
+        Boolean comunicacionPerdida
 ) {
 }

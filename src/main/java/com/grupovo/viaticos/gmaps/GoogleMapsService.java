@@ -46,6 +46,10 @@ public class GoogleMapsService {
                 round(porCasetas.distanceMeters() / 1000.0 * 2),
                 PolylineUtils.roundTrip(porCasetas.encodedPolyline()),
                 PolylineUtils.roundTrip(libre.encodedPolyline()),
+                porCasetas.encodedPolyline(),
+                computeReturnPolyline(origen, destino, false),
+                libre.encodedPolyline(),
+                computeReturnPolyline(origen, destino, true),
                 renumerarCasetas(porCasetas.tolles())
         );
     }
@@ -76,6 +80,10 @@ public class GoogleMapsService {
                 round(porCasetas.distanceMeters() / 1000.0),
                 porCasetas.encodedPolyline(),
                 libre.encodedPolyline(),
+                porCasetas.idaPolyline(),
+                porCasetas.regresoPolyline(),
+                libre.idaPolyline(),
+                libre.regresoPolyline(),
                 porCasetas.tolles()
         );
     }
@@ -95,8 +103,14 @@ public class GoogleMapsService {
                 ida.durationSeconds() + regreso.durationSeconds(),
                 ida.distanceMeters() + regreso.distanceMeters(),
                 polyline,
-                casetas
+                casetas,
+                ida.encodedPolyline(),
+                regreso.encodedPolyline()
         );
+    }
+
+    private String computeReturnPolyline(Destino origen, Destino destino, boolean avoidTolls) {
+        return computeRoute(destino, origen, avoidTolls, List.of()).encodedPolyline();
     }
 
     private List<Destino> optimizarOrden(Destino origen, List<Destino> paradas) {
@@ -205,7 +219,7 @@ public class GoogleMapsService {
                     i++;
                 }
             }
-            return new RouteResult(durationSeconds, distanceMeters, polyline, tolles);
+            return new RouteResult(durationSeconds, distanceMeters, polyline, tolles, polyline, polyline);
         } catch (InvalidEntryException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -261,6 +275,10 @@ public class GoogleMapsService {
                 320.0,
                 PolylineUtils.roundTrip(mockPolyline),
                 PolylineUtils.roundTrip(mockPolyline),
+                mockPolyline,
+                mockPolyline,
+                mockPolyline,
+                mockPolyline,
                 casetas
         );
     }
@@ -272,10 +290,15 @@ public class GoogleMapsService {
                             Double distanciaKm,
                             String polylineCasetas,
                             String polylineLibre,
+                            String polylineCasetasIda,
+                            String polylineCasetasRegreso,
+                            String polylineLibreIda,
+                            String polylineLibreRegreso,
                             List<CasetaToll> casetas) {
     }
 
     private record RouteResult(long durationSeconds, long distanceMeters,
-                               String encodedPolyline, List<CasetaToll> tolles) {
+                                String encodedPolyline, List<CasetaToll> tolles,
+                                String idaPolyline, String regresoPolyline) {
     }
 }

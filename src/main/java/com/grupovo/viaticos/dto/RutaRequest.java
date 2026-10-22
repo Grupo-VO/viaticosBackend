@@ -1,15 +1,15 @@
 package com.grupovo.viaticos.dto;
 
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 
 public record RutaRequest(
         @NotBlank String nombre,
         @NotNull Integer idOrigen,
         @NotNull Integer idDestino,
         @NotNull Boolean usaCasetas,
-        @NotNull @Min(0) Double costoComida,
-        @NotNull @Min(0) Double costoHospedaje
+        @NotNull @PositiveOrZero Double costoComida,
+        @NotNull @PositiveOrZero Double costoHospedaje
 ) {
 }

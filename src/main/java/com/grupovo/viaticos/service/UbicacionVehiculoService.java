@@ -52,6 +52,11 @@ public class UbicacionVehiculoService {
             throw new InvalidEntryException("El viaje debe estar EN VIAJE para registrar ubicaciones");
         }
         validarAcceso(viaje);
+        LocalDateTime fecha = request.fecha() != null ? request.fecha() : LocalDateTime.now();
+        if (fecha.isAfter(LocalDateTime.now().plusSeconds(30))
+                || fecha.isBefore(LocalDateTime.now().minusHours(24))) {
+            throw new InvalidEntryException("La fecha de ubicación está fuera del rango permitido");
+        }
 
         UbicacionVehiculo ubicacion = UbicacionVehiculo.builder()
                 .viaje(viaje)
@@ -59,7 +64,7 @@ public class UbicacionVehiculoService {
                 .latitud(request.latitud())
                 .longitud(request.longitud())
                 .velocidadKmh(request.velocidadKmh() == null ? 0.0 : request.velocidadKmh())
-                .fecha(request.fecha() != null ? request.fecha() : LocalDateTime.now())
+                .fecha(fecha)
                 .build();
         ubicacion = ubicacionRepository.save(ubicacion);
 
@@ -78,6 +83,8 @@ public class UbicacionVehiculoService {
 
     @Transactional(readOnly = true)
     public List<Alerta> alertasDelViaje(Integer idViaje) {
+        Viaje viaje = viajeService.getViaje(idViaje);
+        validarAcceso(viaje);
         return alertaRepository.findByViajeIdViajeOrderByFechaDesc(idViaje);
     }
 
@@ -122,7 +129,7 @@ public class UbicacionVehiculoService {
         if (polyline == null || polyline.isEmpty()) {
             return;
         }
-        double umbral = configuracionService.getDouble(ConfiguracionService.DISTANCIA_ALERTA_METROS, 150.0);
+        double umbral = configuracionService.getDouble(ConfiguracionService.DISTANCIA_ALERTA_METROS, 500.0);
         double distancia = distanciaAPolyline(polyline, latitud, longitud);
         if (distancia > umbral) {
             crearAlertaSiNoActiva(viaje, AlertaTipo.DESVIACION,
@@ -135,9 +142,17 @@ public class UbicacionVehiculoService {
     private void verificarGasolinaBaja(Viaje viaje) {
         double umbralPct = configuracionService.getDouble(ConfiguracionService.UMBRAL_GASOLINA, 20.0);
         double umbralLitros = viaje.getVehiculo().getCapacidadTanqueLitros() * umbralPct / 100.0;
-        if (viaje.getVehiculo().getNivelCombustible() < umbralLitros) {
+        double rendimiento = viaje.getVehiculo().getRendimiento();
+        double consumoEstimado = rendimiento > 0
+                ? (viaje.getDistanciaKm() != null ? viaje.getDistanciaKm() : 0.0) / rendimiento
+                : Double.MAX_VALUE;
+        double requerido = consumoEstimado + umbralLitros;
+        if (viaje.getVehiculo().getNivelCombustible() < requerido) {
             crearAlertaSiNoActiva(viaje, AlertaTipo.GASOLINA_BAJA,
-                    "Nivel de combustible bajo: " + Math.round(viaje.getVehiculo().getNivelCombustible()) + " L");
+                    "Combustible insuficiente para completar la ruta. Faltan aproximadamente " +
+                            Math.round(Math.max(0, requerido - viaje.getVehiculo().getNivelCombustible()) * 100.0) / 100.0 + " L");
+        } else {
+            resolverAlertas(viaje, AlertaTipo.GASOLINA_BAJA);
         }
     }
 

@@ -2,10 +2,7 @@ package com.grupovo.viaticos.service;
 
 import com.grupovo.viaticos.domain.CargaCombustible;
 import com.grupovo.viaticos.domain.Mantenimiento;
-import com.grupovo.viaticos.domain.Ruta;
-import com.grupovo.viaticos.domain.Vehiculo;
 import com.grupovo.viaticos.domain.Viaje;
-import com.grupovo.viaticos.domain.en.TipoTrayecto;
 import com.grupovo.viaticos.repository.CargaCombustibleRepository;
 import com.grupovo.viaticos.repository.MantenimientoRepository;
 import com.grupovo.viaticos.repository.ViajeRepository;
@@ -36,7 +33,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Service
@@ -48,19 +44,16 @@ public class ExportService {
     private final ViajeRepository viajeRepository;
     private final CargaCombustibleRepository cargaRepository;
     private final MantenimientoRepository mantenimientoRepository;
-    private final RutaService rutaService;
-    private final ConfiguracionService configuracionService;
+    private final ViajeService viajeService;
 
     public ExportService(ViajeRepository viajeRepository,
                          CargaCombustibleRepository cargaRepository,
                          MantenimientoRepository mantenimientoRepository,
-                         RutaService rutaService,
-                         ConfiguracionService configuracionService) {
+                         ViajeService viajeService) {
         this.viajeRepository = viajeRepository;
         this.cargaRepository = cargaRepository;
         this.mantenimientoRepository = mantenimientoRepository;
-        this.rutaService = rutaService;
-        this.configuracionService = configuracionService;
+        this.viajeService = viajeService;
     }
 
     @Transactional(readOnly = true)
@@ -75,9 +68,9 @@ public class ExportService {
             for (Viaje v : viajes) {
                 Row row = sheet.createRow(r++);
                 celda(row, 0, v.getIdViaje());
-                celda(row, 1, v.getRuta().getNombre());
-                celda(row, 2, v.getRuta().getOrigen().getNombre());
-                celda(row, 3, v.getRuta().getDestino().getNombre());
+                celda(row, 1, viajeService.nombreRuta(v));
+                celda(row, 2, viajeService.origenRuta(v));
+                celda(row, 3, viajeService.destinoRuta(v));
                 celda(row, 4, v.getVehiculo().getPlaca());
                 celda(row, 5, v.getChofer().getNombre() + " " + v.getChofer().getApellidoPaterno());
                 celda(row, 6, v.getNumeroPasajeros());
@@ -101,7 +94,7 @@ public class ExportService {
                 new String[]{"Id", "Ruta", "Vehiculo", "Chofer", "Salida", "Regreso", "Estado"},
                 viajes, (v) -> new String[]{
                         String.valueOf(v.getIdViaje()),
-                        v.getRuta().getNombre(),
+                        viajeService.nombreRuta(v),
                         v.getVehiculo().getPlaca(),
                         v.getChofer().getNombre() + " " + v.getChofer().getApellidoPaterno(),
                         v.getFechaSalida().format(FECHA_HORA),
@@ -120,10 +113,10 @@ public class ExportService {
             int r = 1;
             double sumaCasetas = 0, sumaViaticos = 0, sumaCombustible = 0, sumaViaje = 0;
             for (Viaje v : viajes) {
-                FilaViaje f = filaViaje(v);
+                ViajeService.FilaFinanciera f = viajeService.filaFinanciera(v);
                 Row row = sheet.createRow(r++);
                 celda(row, 0, v.getIdViaje());
-                celda(row, 1, v.getRuta().getNombre());
+                celda(row, 1, viajeService.nombreRuta(v));
                 celda(row, 2, v.getVehiculo().getPlaca());
                 celda(row, 3, v.getChofer().getNombre() + " " + v.getChofer().getApellidoPaterno());
                 celda(row, 4, f.totalDias());
@@ -157,8 +150,8 @@ public class ExportService {
         return pdf("Reporte de viaticos", "Periodo: " + periodo(desde, hasta),
                 new String[]{"Id", "Ruta", "Dias", "Casetas", "Viaticos", "Combustible", "Total"},
                 viajes, (v) -> {
-                    FilaViaje f = filaViaje(v);
-                    return new String[]{String.valueOf(v.getIdViaje()), v.getRuta().getNombre(),
+                    ViajeService.FilaFinanciera f = viajeService.filaFinanciera(v);
+                    return new String[]{String.valueOf(v.getIdViaje()), viajeService.nombreRuta(v),
                             String.valueOf(f.totalDias()), String.valueOf(f.totalCasetas()),
                             String.valueOf(f.totalViaticos()), String.valueOf(f.costoCombustible()),
                             String.valueOf(f.totalViaje())};
@@ -275,22 +268,6 @@ public class ExportService {
         return (desde == null ? "inicio" : desde.format(FECHA)) + " a " + (hasta == null ? "hoy" : hasta.format(FECHA));
     }
 
-    private FilaViaje filaViaje(Viaje viaje) {
-        Ruta ruta = viaje.getRuta();
-        Vehiculo vehiculo = viaje.getVehiculo();
-        int totalDias = (int) ChronoUnit.DAYS.between(
-                viaje.getFechaSalida().toLocalDate(), viaje.getFechaRegreso().toLocalDate()) + 1;
-        double totalViaticos = (ruta.getCostoComida() + ruta.getCostoHospedaje()) * totalDias;
-        double totalCasetas = viaje.getTipoTrayecto() == TipoTrayecto.CASETAS
-                ? rutaService.costoTotalCasetas(ruta) : 0.0;
-        double litros = Math.round(ruta.getDistanciaKm() / vehiculo.getRendimiento() * 100.0) / 100.0;
-        double precio = configuracionService.getDouble(ConfiguracionService.PRECIO_COMBUSTIBLE, 0.0);
-        double costoCombustible = Math.round(litros * precio * 100.0) / 100.0;
-        return new FilaViaje(totalDias, Math.round(totalCasetas * 100.0) / 100.0,
-                Math.round(totalViaticos * 100.0) / 100.0, litros, costoCombustible,
-                Math.round((totalViaticos + totalCasetas) * 100.0) / 100.0);
-    }
-
     private void escribirEncabezado(Workbook wb, Sheet sheet, String[] headers) {
         CellStyle style = wb.createCellStyle();
         style.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
@@ -366,9 +343,5 @@ public class ExportService {
         } catch (Exception e) {
             throw new IllegalStateException("Error al generar el reporte en PDF", e);
         }
-    }
-
-    private record FilaViaje(int totalDias, double totalCasetas, double totalViaticos,
-                             double litros, double costoCombustible, double totalViaje) {
     }
 }

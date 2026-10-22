@@ -18,6 +18,7 @@ public class ConfiguracionService {
     public static final String UMBRAL_GASOLINA = "UMBRAL_GASOLINA";
     public static final String DISTANCIA_ALERTA_METROS = "DISTANCIA_ALERTA_METROS";
     public static final String RADIO_LLEGADA_METROS = "RADIO_LLEGADA_METROS";
+    public static final String TIEMPO_SIN_COMUNICACION_SEGUNDOS = "TIEMPO_SIN_COMUNICACION_SEGUNDOS";
 
     private final ConfiguracionSistemaRepository configuracionRepository;
 

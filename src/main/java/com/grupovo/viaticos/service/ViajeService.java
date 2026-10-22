@@ -76,7 +76,9 @@ public class ViajeService {
 
     @Transactional(readOnly = true)
     public ViajeResponse obtener(Integer id) {
-        return toResponse(getViaje(id));
+        Viaje viaje = getViaje(id);
+        validarAccesoChofer(viaje);
+        return toResponse(viaje);
     }
 
     @Transactional
@@ -84,11 +86,8 @@ public class ViajeService {
         Vehiculo vehiculo = getVehiculoDisponible(request.idVehiculo());
         Persona chofer = getChofer(request.idChofer());
         validarFechas(request.fechaSalida(), request.fechaRegreso());
-
-        List<Destino> destinos = resolverDestinos(request);
-
-        GoogleMapsService.RouteData routeData =
-                googleMapsService.calcularRutaMultiDestino(destinos, Boolean.TRUE.equals(request.optimizar()));
+        validarModoRuta(request);
+        validarDestinosViaje(request);
 
         boolean excesoCapacidad = request.numeroPasajeros() > vehiculo.getLimitePasajeros();
 
@@ -101,16 +100,27 @@ public class ViajeService {
                 .tipoTrayecto(request.tipoTrayecto())
                 .status(ViajeStatus.PROXIMO)
                 .excesoCapacidad(excesoCapacidad)
-                .distanciaKm(routeData.distanciaKm())
-                .duracionMinutos(routeData.duracionMinutos())
                 .costoComida(request.costoComida())
                 .costoHospedaje(request.costoHospedaje())
-                .polylineCasetas(routeData.polylineCasetas())
-                .polylineLibre(routeData.polylineLibre())
                 .build();
 
-        poblarDestinos(viaje, destinos);
-        poblarCasetas(viaje, routeData.casetas());
+        if (request.idRuta() != null) {
+            usarRutaGuardada(viaje, request.idRuta());
+        } else {
+            List<Destino> destinos = resolverDestinos(request);
+            GoogleMapsService.RouteData routeData =
+                    googleMapsService.calcularRutaMultiDestino(destinos, Boolean.TRUE.equals(request.optimizar()));
+            viaje.setDistanciaKm(routeData.distanciaKm());
+            viaje.setDuracionMinutos(routeData.duracionMinutos());
+            viaje.setPolylineCasetas(routeData.polylineCasetas());
+            viaje.setPolylineLibre(routeData.polylineLibre());
+            viaje.setPolylineCasetasIda(routeData.polylineCasetasIda());
+            viaje.setPolylineCasetasRegreso(routeData.polylineCasetasRegreso());
+            viaje.setPolylineLibreIda(routeData.polylineLibreIda());
+            viaje.setPolylineLibreRegreso(routeData.polylineLibreRegreso());
+            poblarDestinos(viaje, destinos);
+            poblarCasetas(viaje, routeData.casetas());
+        }
 
         validarSinTraslapes(vehiculo.getIdVehiculo(), chofer.getIdPersona(),
                 request.fechaSalida(), request.fechaRegreso(), null);
@@ -134,12 +144,9 @@ public class ViajeService {
         Vehiculo vehiculo = getVehiculoDisponible(request.idVehiculo());
         Persona chofer = getChofer(request.idChofer());
         validarFechas(request.fechaSalida(), request.fechaRegreso());
+        validarModoRuta(request);
+        validarDestinosViaje(request);
 
-        List<Destino> destinos = resolverDestinos(request);
-        GoogleMapsService.RouteData routeData =
-                googleMapsService.calcularRutaMultiDestino(destinos, Boolean.TRUE.equals(request.optimizar()));
-
-        viaje.setRuta(null);
         viaje.setVehiculo(vehiculo);
         viaje.setChofer(chofer);
         viaje.setNumeroPasajeros(request.numeroPasajeros());
@@ -147,17 +154,30 @@ public class ViajeService {
         viaje.setFechaRegreso(request.fechaRegreso());
         viaje.setTipoTrayecto(request.tipoTrayecto());
         viaje.setExcesoCapacidad(request.numeroPasajeros() > vehiculo.getLimitePasajeros());
-        viaje.setDistanciaKm(routeData.distanciaKm());
-        viaje.setDuracionMinutos(routeData.duracionMinutos());
         viaje.setCostoComida(request.costoComida());
         viaje.setCostoHospedaje(request.costoHospedaje());
-        viaje.setPolylineCasetas(routeData.polylineCasetas());
-        viaje.setPolylineLibre(routeData.polylineLibre());
 
         viaje.getViajeDestinos().clear();
-        poblarDestinos(viaje, destinos);
         viaje.getViajeCasetas().clear();
-        poblarCasetas(viaje, routeData.casetas());
+
+        if (request.idRuta() != null) {
+            usarRutaGuardada(viaje, request.idRuta());
+        } else {
+            viaje.setRuta(null);
+            List<Destino> destinos = resolverDestinos(request);
+            GoogleMapsService.RouteData routeData =
+                    googleMapsService.calcularRutaMultiDestino(destinos, Boolean.TRUE.equals(request.optimizar()));
+            viaje.setDistanciaKm(routeData.distanciaKm());
+            viaje.setDuracionMinutos(routeData.duracionMinutos());
+            viaje.setPolylineCasetas(routeData.polylineCasetas());
+            viaje.setPolylineLibre(routeData.polylineLibre());
+            viaje.setPolylineCasetasIda(routeData.polylineCasetasIda());
+            viaje.setPolylineCasetasRegreso(routeData.polylineCasetasRegreso());
+            viaje.setPolylineLibreIda(routeData.polylineLibreIda());
+            viaje.setPolylineLibreRegreso(routeData.polylineLibreRegreso());
+            poblarDestinos(viaje, destinos);
+            poblarCasetas(viaje, routeData.casetas());
+        }
 
         validarSinTraslapes(vehiculo.getIdVehiculo(), chofer.getIdPersona(),
                 request.fechaSalida(), request.fechaRegreso(), id);
@@ -190,8 +210,8 @@ public class ViajeService {
     @Transactional
     public ViajeResponse completar(Integer id) {
         Viaje viaje = getViaje(id);
-        if (viaje.getStatus() != ViajeStatus.PROXIMO && viaje.getStatus() != ViajeStatus.EN_VIAJE) {
-            throw new InvalidEntryException("Solo se pueden completar viajes en estado PRÓXIMO o EN VIAJE");
+        if (viaje.getStatus() != ViajeStatus.EN_VIAJE) {
+            throw new InvalidEntryException("Solo se pueden completar viajes en estado EN VIAJE");
         }
         viaje.setStatus(ViajeStatus.COMPLETADO);
 
@@ -239,6 +259,97 @@ public class ViajeService {
         String username = SecurityUtils.currentUsername();
         return username == null ? null
                 : personaRepository.findByUsernameIgnoreCase(username).orElse(null);
+    }
+
+    private void validarAccesoChofer(Viaje viaje) {
+        Persona current = currentUser();
+        if (current != null && current.getRole() == Role.CHOFER
+                && !current.getIdPersona().equals(viaje.getChofer().getIdPersona())) {
+            throw new NotFoundException("Viaje no encontrado con id " + viaje.getIdViaje());
+        }
+    }
+
+    private void validarDestinosViaje(ViajeRequest request) {
+        if (request.idRuta() != null) {
+            return;
+        }
+        if (request.idOrigen() == null) {
+            throw new InvalidEntryException("Debes indicar el origen de la ruta");
+        }
+        if (request.idDestinos() == null || request.idDestinos().isEmpty()) {
+            throw new InvalidEntryException("Debes indicar al menos un destino");
+        }
+    }
+
+    private void validarModoRuta(ViajeRequest request) {
+        boolean rutaPredefinida = request.idRuta() != null;
+        boolean tieneOrigen = request.idOrigen() != null;
+        boolean tieneDestinos = request.idDestinos() != null && !request.idDestinos().isEmpty();
+
+        if (rutaPredefinida && (tieneOrigen || tieneDestinos)) {
+            throw new InvalidEntryException("Una ruta predefinida no puede combinarse con destinos especiales");
+        }
+        if (!rutaPredefinida && (!tieneOrigen || !tieneDestinos)) {
+            throw new InvalidEntryException("Una ruta especial requiere origen y al menos un destino");
+        }
+    }
+
+    private void usarRutaGuardada(Viaje viaje, Integer idRuta) {
+        Ruta ruta = rutaService.getRuta(idRuta);
+        if (!Boolean.TRUE.equals(ruta.getActivo())) {
+            throw new InvalidEntryException("La ruta está inactiva");
+        }
+        viaje.setRuta(ruta);
+        viaje.setTipoTrayecto(Boolean.TRUE.equals(ruta.getUsaCasetas())
+                ? TipoTrayecto.CASETAS : TipoTrayecto.LIBRE);
+        viaje.setCostoComida(ruta.getCostoComida());
+        viaje.setCostoHospedaje(ruta.getCostoHospedaje());
+        viaje.setNombreRutaSnapshot(ruta.getNombre());
+        viaje.setDistanciaKm(ruta.getDistanciaKm());
+        viaje.setDuracionMinutos(ruta.getDuracionMinutos());
+        viaje.setPolylineCasetas(ruta.getPolylineCasetas());
+        viaje.setPolylineLibre(ruta.getPolylineLibre());
+        viaje.setPolylineCasetasIda(ruta.getPolylineCasetasIda());
+        viaje.setPolylineCasetasRegreso(ruta.getPolylineCasetasRegreso());
+        viaje.setPolylineLibreIda(ruta.getPolylineLibreIda());
+        viaje.setPolylineLibreRegreso(ruta.getPolylineLibreRegreso());
+        poblarDestinosDesdeRuta(viaje, ruta);
+        copiarCasetasDeRuta(viaje, ruta);
+    }
+
+    private void poblarDestinosDesdeRuta(Viaje viaje, Ruta ruta) {
+        int orden = 0;
+        for (Destino d : List.of(ruta.getOrigen(), ruta.getDestino())) {
+            viaje.getViajeDestinos().add(ViajeDestino.builder()
+                    .viaje(viaje)
+                    .nombre(d.getNombre())
+                    .direccion(d.getDireccion())
+                    .latitud(d.getLatitud())
+                    .longitud(d.getLongitud())
+                    .orden(orden)
+                    .visitado(orden == 0)
+                    .build());
+            orden++;
+        }
+    }
+
+    private void copiarCasetasDeRuta(Viaje viaje, Ruta ruta) {
+        if (viaje.getTipoTrayecto() != TipoTrayecto.CASETAS || ruta.getCasetas() == null) {
+            return;
+        }
+        int orden = 1;
+        for (Caseta toll : ruta.getCasetas().stream()
+                .sorted(Comparator.comparing(Caseta::getOrden))
+                .toList()) {
+            viaje.getViajeCasetas().add(ViajeCaseta.builder()
+                    .viaje(viaje)
+                    .nombre(toll.getNombre())
+                    .costo(toll.getCosto() == null ? 0.0 : toll.getCosto())
+                    .orden(orden++)
+                    .latitud(toll.getLatitud())
+                    .longitud(toll.getLongitud())
+                    .build());
+        }
     }
 
     private List<Destino> resolverDestinos(ViajeRequest request) {
@@ -377,7 +488,8 @@ public class ViajeService {
 
         int totalDias = (int) ChronoUnit.DAYS.between(
                 viaje.getFechaSalida().toLocalDate(), viaje.getFechaRegreso().toLocalDate()) + 1;
-        double totalViaticos = (costoComida(viaje) + costoHospedaje(viaje)) * totalDias;
+        double totalViaticos = (costoComida(viaje) + costoHospedaje(viaje))
+                * totalDias * viaje.getNumeroPasajeros();
         double totalCasetas = totalCasetas(viaje);
         double totalViaje = totalViaticos + totalCasetas;
 
@@ -417,9 +529,16 @@ public class ViajeService {
                 costoHospedaje(viaje),
                 polylineCasetas(viaje),
                 polylineLibre(viaje),
+                viaje.getPolylineCasetasIda(),
+                viaje.getPolylineCasetasRegreso(),
+                viaje.getPolylineLibreIda(),
+                viaje.getPolylineLibreRegreso(),
                 destinosResponse(viaje),
                 casetasResponse(viaje),
-                viaje.getFechaCreacion()
+                viaje.getFechaCreacion(),
+                Math.round(vehiculo.getNivelCombustible() * 100.0) / 100.0,
+                Math.round((litrosConsumidos + reservaCombustible(vehiculo)) * 100.0) / 100.0,
+                Math.round(combustibleFaltante(vehiculo, litrosConsumidos) * 100.0) / 100.0
         );
     }
 
@@ -469,7 +588,10 @@ public class ViajeService {
         return 0.0;
     }
 
-    private String nombreRuta(Viaje viaje) {
+    public String nombreRuta(Viaje viaje) {
+        if (viaje.getNombreRutaSnapshot() != null) {
+            return viaje.getNombreRutaSnapshot();
+        }
         if (viaje.getRuta() != null) {
             return viaje.getRuta().getNombre();
         }
@@ -482,7 +604,7 @@ public class ViajeService {
                 : destinos.get(0).getNombre();
     }
 
-    private String origenRuta(Viaje viaje) {
+    public String origenRuta(Viaje viaje) {
         if (viaje.getRuta() != null) {
             return viaje.getRuta().getOrigen().getNombre();
         }
@@ -490,7 +612,7 @@ public class ViajeService {
         return destinos.isEmpty() ? null : destinos.get(0).getNombre();
     }
 
-    private String destinoRuta(Viaje viaje) {
+    public String destinoRuta(Viaje viaje) {
         if (viaje.getRuta() != null) {
             return viaje.getRuta().getDestino().getNombre();
         }
@@ -574,11 +696,39 @@ public class ViajeService {
     }
 
     private boolean alertaGasolinaBaja(Vehiculo vehiculo, double litrosConsumidos, boolean prediccion) {
+        return prediccion
+                ? combustibleFaltante(vehiculo, litrosConsumidos) > 0
+                : vehiculo.getNivelCombustible() < reservaCombustible(vehiculo);
+    }
+
+    private double reservaCombustible(Vehiculo vehiculo) {
         double umbralPct = configuracionService.getDouble(ConfiguracionService.UMBRAL_GASOLINA, 20.0);
-        double nivelEfectivo = prediccion
-                ? vehiculo.getNivelCombustible() - litrosConsumidos
-                : vehiculo.getNivelCombustible();
-        double umbralLitros = vehiculo.getCapacidadTanqueLitros() * umbralPct / 100.0;
-        return nivelEfectivo < umbralLitros;
+        return vehiculo.getCapacidadTanqueLitros() * umbralPct / 100.0;
+    }
+
+    private double combustibleFaltante(Vehiculo vehiculo, double litrosConsumidos) {
+        return Math.max(0.0, litrosConsumidos + reservaCombustible(vehiculo) - vehiculo.getNivelCombustible());
+    }
+
+    public FilaFinanciera filaFinanciera(Viaje viaje) {
+        Vehiculo vehiculo = viaje.getVehiculo();
+        int totalDias = (int) ChronoUnit.DAYS.between(
+                viaje.getFechaSalida().toLocalDate(), viaje.getFechaRegreso().toLocalDate()) + 1;
+        double totalViaticos = (costoComida(viaje) + costoHospedaje(viaje))
+                * totalDias * viaje.getNumeroPasajeros();
+        double totalCasetas = totalCasetas(viaje);
+        double litros = litrosConsumidos(viaje, vehiculo);
+        double costoCombustible = costoCombustible(litros);
+        double totalViaje = totalViaticos + totalCasetas;
+        return new FilaFinanciera(totalDias,
+                Math.round(totalCasetas * 100.0) / 100.0,
+                Math.round(totalViaticos * 100.0) / 100.0,
+                litros,
+                costoCombustible,
+                Math.round(totalViaje * 100.0) / 100.0);
+    }
+
+    public record FilaFinanciera(int totalDias, double totalCasetas, double totalViaticos,
+                                 double litros, double costoCombustible, double totalViaje) {
     }
 }
