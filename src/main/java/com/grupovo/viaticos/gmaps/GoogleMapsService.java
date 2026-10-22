@@ -1,0 +1,304 @@
+package com.grupovo.viaticos.gmaps;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import com.grupovo.viaticos.domain.Destino;
+import com.grupovo.viaticos.exception.InvalidEntryException;
+import com.grupovo.viaticos.util.PolylineUtils;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+@Service
+public class GoogleMapsService {
+
+    private static final String BASE_URL = "https://routes.googleapis.com";
+    private static final String DIRECTIONS_URL = "https://maps.googleapis.com/maps/api/directions/json";
+    private static final String FIELD_MASK =
+            "routes.duration,routes.distanceMeters,routes.polyline,routes.travelAdvisory.tollInfo";
+
+    private final String apiKey;
+    private final RestClient restClient;
+    private final ObjectMapper objectMapper;
+
+    public GoogleMapsService(@Value("${google.maps.api-key:}") String apiKey,
+                             ObjectMapper objectMapper) {
+        this.apiKey = apiKey == null ? "" : apiKey.trim();
+        this.restClient = RestClient.create(BASE_URL);
+        this.objectMapper = objectMapper;
+    }
+
+    public RouteData calcularRutaRedonda(Destino origen, Destino destino) {
+        if (apiKey.isEmpty()) {
+            return mockRouteData();
+        }
+
+        RouteResult porCasetas = computeRoute(origen, destino, false, List.of());
+        RouteResult libre = computeRoute(origen, destino, true, List.of());
+
+        return new RouteData(
+                round(porCasetas.durationSeconds() / 60.0 * 2),
+                round(porCasetas.distanceMeters() / 1000.0 * 2),
+                PolylineUtils.roundTrip(porCasetas.encodedPolyline()),
+                PolylineUtils.roundTrip(libre.encodedPolyline()),
+                porCasetas.encodedPolyline(),
+                computeReturnPolyline(origen, destino, false),
+                libre.encodedPolyline(),
+                computeReturnPolyline(origen, destino, true),
+                renumerarCasetas(porCasetas.tolles())
+        );
+    }
+
+    public RouteData calcularRutaMultiDestino(List<Destino> destinos, boolean optimizar) {
+        if (destinos == null || destinos.size() < 2) {
+            throw new InvalidEntryException("Se requieren al menos el origen y un destino");
+        }
+        if (apiKey.isEmpty()) {
+            return mockRouteData();
+        }
+
+        Destino origen = destinos.get(0);
+        List<Destino> paradas = new ArrayList<>(destinos.subList(1, destinos.size()));
+        if (optimizar && paradas.size() > 1) {
+            paradas = optimizarOrden(origen, paradas);
+        }
+
+        List<Destino> ruta = new ArrayList<>(paradas.size() + 1);
+        ruta.add(origen);
+        ruta.addAll(paradas);
+
+        RouteResult porCasetas = calcularTrayectoRedondo(ruta, false);
+        RouteResult libre = calcularTrayectoRedondo(ruta, true);
+
+        return new RouteData(
+                round(porCasetas.durationSeconds() / 60.0),
+                round(porCasetas.distanceMeters() / 1000.0),
+                porCasetas.encodedPolyline(),
+                libre.encodedPolyline(),
+                porCasetas.idaPolyline(),
+                porCasetas.regresoPolyline(),
+                libre.idaPolyline(),
+                libre.regresoPolyline(),
+                porCasetas.tolles()
+        );
+    }
+
+    private RouteResult calcularTrayectoRedondo(List<Destino> ruta, boolean avoidTolls) {
+        Destino origen = ruta.get(0);
+        Destino ultimo = ruta.get(ruta.size() - 1);
+        List<Destino> intermediates = ruta.subList(1, ruta.size() - 1);
+
+        RouteResult ida = computeRoute(origen, ultimo, avoidTolls, intermediates);
+        RouteResult regreso = computeRoute(ultimo, origen, avoidTolls, List.of());
+
+        String polyline = PolylineUtils.concat(ida.encodedPolyline(), regreso.encodedPolyline());
+        List<CasetaToll> casetas = avoidTolls ? List.of() : renumerarCasetas(combinar(ida.tolles(), regreso.tolles()));
+
+        return new RouteResult(
+                ida.durationSeconds() + regreso.durationSeconds(),
+                ida.distanceMeters() + regreso.distanceMeters(),
+                polyline,
+                casetas,
+                ida.encodedPolyline(),
+                regreso.encodedPolyline()
+        );
+    }
+
+    private String computeReturnPolyline(Destino origen, Destino destino, boolean avoidTolls) {
+        return computeRoute(destino, origen, avoidTolls, List.of()).encodedPolyline();
+    }
+
+    private List<Destino> optimizarOrden(Destino origen, List<Destino> paradas) {
+        List<String> waypoints = paradas.stream()
+                .map(d -> d.getLatitud() + "," + d.getLongitud())
+                .toList();
+
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(DIRECTIONS_URL)
+                .queryParam("origin", origen.getLatitud() + "," + origen.getLongitud())
+                .queryParam("destination", origen.getLatitud() + "," + origen.getLongitud())
+                .queryParam("mode", "driving")
+                .queryParam("optimize", "true")
+                .queryParam("key", apiKey);
+        waypoints.forEach(wp -> builder.queryParam("waypoints", "via:" + wp));
+
+        String responseBody;
+        try {
+            responseBody = RestClient.create().get()
+                    .uri(builder.build().encode().toUri())
+                    .retrieve()
+                    .body(String.class);
+        } catch (Exception ex) {
+            throw new InvalidEntryException("No se pudo optimizar el orden de destinos en Google Maps: " + ex.getMessage());
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(responseBody);
+            JsonNode waypointOrder = root.path("routes").path(0).path("waypoint_order");
+            if (waypointOrder.isMissingNode() || !waypointOrder.isArray()) {
+                return paradas;
+            }
+            List<Destino> ordenadas = new ArrayList<>(paradas.size());
+            for (JsonNode index : waypointOrder) {
+                ordenadas.add(paradas.get(index.asInt()));
+            }
+            if (ordenadas.size() != paradas.size()) {
+                return paradas;
+            }
+            return ordenadas;
+        } catch (InvalidEntryException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new InvalidEntryException("Error al interpretar la optimización de Google Maps");
+        }
+    }
+
+    private RouteResult computeRoute(Destino origen, Destino destino, boolean avoidTolls, List<Destino> intermediates) {
+        Map<String, Object> body = Map.of(
+                "origin", Map.of("location", Map.of("latLng", Map.of(
+                        "latitude", origen.getLatitud(), "longitude", origen.getLongitud()))),
+                "destination", Map.of("location", Map.of("latLng", Map.of(
+                        "latitude", destino.getLatitud(), "longitude", destino.getLongitud()))),
+                "travelMode", "DRIVE",
+                "polylineEncoding", "ENCODED_POLYLINE",
+                "units", "METRIC",
+                "routeModifiers", Map.of("avoidTolls", avoidTolls)
+        );
+
+        Map<String, Object> bodyFinal = body;
+        if (intermediates != null && !intermediates.isEmpty()) {
+            List<Map<String, Object>> intermediateList = new ArrayList<>();
+            for (Destino d : intermediates) {
+                intermediateList.add(Map.of("location", Map.of("latLng", Map.of(
+                        "latitude", d.getLatitud(), "longitude", d.getLongitud()))));
+            }
+            bodyFinal = new java.util.HashMap<>(body);
+            bodyFinal.put("intermediates", intermediateList);
+        }
+
+        String responseBody;
+        try {
+            responseBody = restClient.post()
+                    .uri("/directions/v2:computeRoutes")
+                    .header("Content-Type", "application/json")
+                    .header("X-Goog-Api-Key", apiKey)
+                    .header("X-Goog-FieldMask", FIELD_MASK)
+                    .body(bodyFinal)
+                    .retrieve()
+                    .body(String.class);
+        } catch (Exception ex) {
+            throw new InvalidEntryException("No se pudo calcular la ruta en Google Maps: " + ex.getMessage());
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(responseBody);
+            JsonNode route = root.path("routes").path(0);
+            if (route.isMissingNode()) {
+                throw new InvalidEntryException("Google Maps no encontró una ruta entre los destinos");
+            }
+            String polyline = route.path("polyline").path("encodedPolyline").asText(null);
+            long durationSeconds = parseSeconds(route.path("duration").asText("0s"));
+            long distanceMeters = route.path("distanceMeters").asLong(0);
+            List<CasetaToll> tolles = new ArrayList<>();
+            if (!avoidTolls) {
+                JsonNode tollInfo = route.path("travelAdvisory").path("tollInfo");
+                JsonNode tolls = tollInfo.path("tolls");
+                int i = 1;
+                for (JsonNode toll : tolls) {
+                    JsonNode location = toll.path("tollPlaces").path(0).path("location").path("latLng");
+                    Double lat = location.path("latitude").isNumber()
+                            ? location.path("latitude").asDouble() : null;
+                    Double lng = location.path("longitude").isNumber()
+                            ? location.path("longitude").asDouble() : null;
+                    Double costo = moneyToDouble(toll.path("estimatedPrice").path(0));
+                    tolles.add(new CasetaToll("Caseta " + i, costo, lat, lng));
+                    i++;
+                }
+            }
+            return new RouteResult(durationSeconds, distanceMeters, polyline, tolles, polyline, polyline);
+        } catch (InvalidEntryException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new InvalidEntryException("Error al interpretar la respuesta de Google Maps");
+        }
+    }
+
+    private List<CasetaToll> combinar(List<CasetaToll> ida, List<CasetaToll> regreso) {
+        List<CasetaToll> resultado = new ArrayList<>(ida);
+        resultado.addAll(regreso);
+        return resultado;
+    }
+
+    private List<CasetaToll> renumerarCasetas(List<CasetaToll> casetas) {
+        List<CasetaToll> resultado = new ArrayList<>(casetas.size());
+        int orden = 1;
+        for (CasetaToll toll : casetas) {
+            resultado.add(new CasetaToll("Caseta " + orden++, toll.costo(), toll.latitud(), toll.longitud()));
+        }
+        return resultado;
+    }
+
+    private long parseSeconds(String duration) {
+        try {
+            String value = duration == null ? "0s" : duration;
+            return Long.parseLong(value.replace("s", ""));
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
+    }
+
+    private Double moneyToDouble(JsonNode money) {
+        if (money == null || money.isMissingNode()) {
+            return 0.0;
+        }
+        long units = money.path("units").asLong(0);
+        long nanos = money.path("nanos").asLong(0);
+        return Math.round((units + nanos / 1_000_000_000.0) * 100.0) / 100.0;
+    }
+
+    private double round(double value) {
+        return Math.round(value * 100.0) / 100.0;
+    }
+
+    private RouteData mockRouteData() {
+        List<CasetaToll> casetas = List.of(
+                new CasetaToll("Caseta 1 (Demo)", 385.0, null, null),
+                new CasetaToll("Caseta 2 (Demo)", 270.0, null, null)
+        );
+        String mockPolyline = "_p~iF~ps|U_ulLnnqC_mqNvxq`@";
+        return new RouteData(
+                240.0,
+                320.0,
+                PolylineUtils.roundTrip(mockPolyline),
+                PolylineUtils.roundTrip(mockPolyline),
+                mockPolyline,
+                mockPolyline,
+                mockPolyline,
+                mockPolyline,
+                casetas
+        );
+    }
+
+    public record CasetaToll(String nombre, Double costo, Double latitud, Double longitud) {
+    }
+
+    public record RouteData(Double duracionMinutos,
+                            Double distanciaKm,
+                            String polylineCasetas,
+                            String polylineLibre,
+                            String polylineCasetasIda,
+                            String polylineCasetasRegreso,
+                            String polylineLibreIda,
+                            String polylineLibreRegreso,
+                            List<CasetaToll> casetas) {
+    }
+
+    private record RouteResult(long durationSeconds, long distanceMeters,
+                                String encodedPolyline, List<CasetaToll> tolles,
+                                String idaPolyline, String regresoPolyline) {
+    }
+}
