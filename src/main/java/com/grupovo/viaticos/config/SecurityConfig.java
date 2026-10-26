@@ -14,6 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.cors.CorsConfiguration;
@@ -30,19 +31,35 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final String corsOrigins;
+    private final boolean secureCookies;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter,
-                          @Value("${app.security.cors.origins}") String corsOrigins) {
+                          @Value("${app.security.cors.origins}") String corsOrigins,
+                          @Value("${app.security.cookies.secure:false}") boolean secureCookies) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.corsOrigins = corsOrigins;
+        this.secureCookies = secureCookies;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        CookieCsrfTokenRepository csrfRepository =
+                CookieCsrfTokenRepository.withHttpOnlyFalse();
+        csrfRepository.setCookiePath("/");
+        csrfRepository.setCookieCustomizer(cookie -> cookie
+                .path("/")
+                .secure(secureCookies)
+                .sameSite("Lax"));
+
+        CsrfTokenRequestAttributeHandler csrfHandler =
+                new CsrfTokenRequestAttributeHandler();
+        csrfHandler.setCsrfRequestAttributeName(null);
+
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf
-                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRepository(csrfRepository)
+                        .csrfTokenRequestHandler(csrfHandler)
                         // El login no tiene una sesión autenticada que proteger todavía.
                         .ignoringRequestMatchers("/api/v1/auth/login"))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
